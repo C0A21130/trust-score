@@ -164,3 +164,9 @@ databases/
 transactions/
 server_id
 .Trash-0/
+
+# node.js
+node_modules
+dist
+dist-ssr
+*.local
