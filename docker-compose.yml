@@ -1,9 +1,53 @@
 services:
-  app:
-    build: .
+  log-analyzer:
+    build:
+      context: ./log-analyzer
+      dockerfile: Dockerfile
     volumes:
-      - ./app:/app
+      - ./log-analyzer:/log-analyzer
     ports:
       - 8888:8888
     tty: true
-
+    depends_on:
+      - graph-db
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+  scoring-engine:
+    build:
+      context: ./scoring-engine
+      dockerfile: Dockerfile
+    volumes:
+      - ./scoring-engine/app:/app
+    ports:
+      - 5000:5000
+    tty: true
+    depends_on:
+      - graph-db
+  graph-db:
+    image: neo4j:community
+    tty: true
+    ports:
+      - 7474:7474
+      - 7687:7687
+    volumes:
+      - ./neo4j/data:/data
+      - ./neo4j/logs:/logs
+      - ./neo4j/conf:/conf
+    environment:
+      - NEO4J_AUTH=none
+  document-db:
+    image: mongo:latest
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - ./mongo/data:/data/db
+      - ./mongo/logs:/logs
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=password
