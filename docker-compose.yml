@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    volumes:
+      - ./app:/app
+    ports:
+      - 8888:8888
+    tty: true
+
