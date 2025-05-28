@@ -159,11 +159,15 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
-# eno4j
+# neno4j
 databases/
 transactions/
 server_id
 .Trash-0/
+
+# mongodb
+data/
+logs/
 
 # node.js
 node_modules

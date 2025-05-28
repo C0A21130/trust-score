@@ -40,7 +40,10 @@ const fetchEventLog = async (contractAddress: string, myAddress: string, signer:
 
   // アドレスを指定しない場合は全てのログを取得する
   if (myAddress == "") { // もしアドレスを指定しないでログを取得する場合
-    const logs = await contract.queryFilter("Transfer");
+    let logs = await contract.queryFilter("Transfer");
+    logs = logs.filter((log) => {
+      return log.args[0] != "0x0000000000000000000000000000000000000000";
+    });
     console.log(logs);
     return {sendLog: logs, receiveLog: logs};
   }

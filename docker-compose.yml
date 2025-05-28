@@ -28,3 +28,14 @@ services:
       - ./certs:/var/lib/neo4j/certificates/bolt
     environment:
       - NEO4J_AUTH=none
+  document-db:
+    image: mongo:latest
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - ./mongo/data:/data/db
+      - ./mongo/logs:/logs
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=password

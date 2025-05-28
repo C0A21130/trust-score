@@ -24,8 +24,8 @@ const fetchGas = (logs: (EventLog | Log)[], provider: (Provider | null | undefin
     gasUseds.push(gasUsed);
 
     // ガス価格とガス量を表示する
-    console.log(`設定されたガス価格: ${gasPrice} gwei`);
-    console.log(`使用されたガス価格: ${gasUsed} gwei`);
+    // console.log(`設定されたガス価格: ${gasPrice} gwei`);
+    // console.log(`使用されたガス価格: ${gasUsed} gwei`);
   });
 
   return { price: gasPrices, used: gasUseds };
