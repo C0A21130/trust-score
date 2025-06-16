@@ -1,8 +1,10 @@
 services:
-  app:
-    build: .
+  log-analyzer:
+    build:
+      context: ./log-analyzer
+      dockerfile: Dockerfile
     volumes:
-      - ./app:/app
+      - ./log-analyzer:/log-analyzer
     ports:
       - 8888:8888
     tty: true
@@ -15,6 +17,17 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+  scoring-engine:
+    build:
+      context: ./scoring-engine
+      dockerfile: Dockerfile
+    volumes:
+      - ./scoring-engine/app:/app
+    ports:
+      - 5000:5000
+    tty: true
+    depends_on:
+      - graph-db
   graph-db:
     image: neo4j:community
     tty: true
@@ -25,7 +38,6 @@ services:
       - ./neo4j/data:/data
       - ./neo4j/logs:/logs
       - ./neo4j/conf:/conf
-      - ./certs:/var/lib/neo4j/certificates/bolt
     environment:
       - NEO4J_AUTH=none
   document-db:
