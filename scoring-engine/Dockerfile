@@ -13,4 +13,4 @@ COPY requirements.txt /app/
 RUN pip3 install --no-cache-dir -U pip && \
     pip3 install --no-cache-dir -r /app/requirements.txt
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000", "--reload"]
