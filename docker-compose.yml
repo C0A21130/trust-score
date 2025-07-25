@@ -17,12 +17,12 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
-  scoring-engine:
+  trust-scoring-agent:
     build:
-      context: ./scoring-engine
+      context: ./trust-scoring-agent
       dockerfile: Dockerfile
     volumes:
-      - ./scoring-engine/app:/app
+      - ./trust-scoring-agent/app:/app
     ports:
       - 5000:5000
     tty: true
