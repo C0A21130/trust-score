@@ -166,11 +166,8 @@ server_id
 .Trash-0/
 
 # mongodb
-data/
-logs/
+mongo/data/
+mongo/logs/
 
-# node.js
-node_modules
-dist
-dist-ssr
-*.local
+*.csv
+*.png
