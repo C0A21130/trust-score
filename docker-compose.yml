@@ -1,10 +1,10 @@
 services:
-  log-analyzer:
+  trust-engine:
     build:
-      context: ./log-analyzer
+      context: ./trust-engine
       dockerfile: Dockerfile
     volumes:
-      - ./log-analyzer:/log-analyzer
+      - ./trust-engine:/trust-engine
     ports:
       - 8888:8888
     tty: true
