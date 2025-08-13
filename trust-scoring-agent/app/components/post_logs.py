@@ -1,11 +1,11 @@
 from neo4j import GraphDatabase
-from .models import Logs
+from .models import Log
 
 class PostLogs:
     def __init__(self, url: str) -> None:
         self.driver = GraphDatabase.driver(url)
 
-    def save_adress(self, logs: Logs) -> None:
+    def save_adress(self, logs: list[Log]) -> None:
         # Logsのtoとfromアドレスの重複なしリストを作成する
         unique_addresses = set()
         for log in logs:
@@ -16,30 +16,37 @@ class PostLogs:
             session.execute_write(self._create_addresses, unique_addresses)
 
     @staticmethod
-    def _create_addresses(tx, addresses):
-        # 配列に含まれるアドレスをまとめて作成
-        for address in addresses:
-            tx.run("CREATE (u:User {address: $address}) RETURN u", address=address)
+    def _create_addresses(tx, addresses: set):
+        addresses = list(addresses)
+        tx.run(
+            """
+            UNWIND $addresses AS address
+            MERGE (u:User {address: address})
+            """,
+            addresses=addresses
+        )
 
-    def save_relationship(self, contract_address: str, logs: Logs) -> None:
+    def save_relationship(self, logs: list[Log]) -> None:
         with self.driver.session() as session:
-            session.execute_write(self._create_relationship, contract_address, logs)
+            session.execute_write(self._create_relationship, logs)
 
     @staticmethod
-    def _create_relationship(tx, contract_address: str, logs: Logs):
-        for log in logs:
-            # from_addressとto_addressの間にTRANSFERリレーションシップを作成
-            tx.run(
-                """
-                MATCH (from:User {address: $from_address}), (to:User {address: $to_address})
-                CREATE (from)-[:TRANSFER {tokenId: $tokenId, contractAddress: $contractAddress, gasPrice: $gasPrice, gasUsed: $gasUsed}]->(to)
-                """,
-                from_address=log.from_address,
-                to_address=log.to_address,
-                tokenId=log.token_id,
-                contractAddress=contract_address,
-                gasPrice=log.gas_price,
-                gasUsed=log.gas_used
-            )
-        
+    def _create_relationship(tx, logs: list[Log]):
+        logs = [log.dict() for log in logs]
 
+        # 一括でTRANSFERリレーションシップを作成（重複チェック付き）
+        tx.run(
+            """
+            UNWIND $logs AS log
+            MATCH (from:User {address: log.from_address}), (to:User {address: log.to_address})
+            MERGE (from)-[:TRANSFER {
+                tokenId: log.token_id, 
+                contractAddress: log.contract_address, 
+                blockNumber: log.block_number,
+                gasPrice: log.gas_price,
+                gasUsed: log.gas_used,
+                tokenUri: log.token_uri
+            }]->(to)
+            """,
+            logs=logs
+        )
