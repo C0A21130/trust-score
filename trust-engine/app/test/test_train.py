@@ -7,7 +7,7 @@ from components.database import Database
 @pytest.fixture
 def mock_data():
     """モックデータ"""
-    x = torch.randn(10, 5)  # 10 nodes, 5 features
+    x = torch.randn(10, 6)  # 10 nodes, 6 features
     edge_index = torch.tensor([[0, 1, 2], [1, 2, 0]], dtype=torch.long)
     data = Data(x=x, edge_index=edge_index)
     data.num_nodes = 10
