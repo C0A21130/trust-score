@@ -3,9 +3,11 @@ from torch_geometric.nn import VGAE
 from torch_geometric.data import Data
 import pandas as pd
 import networkx as nx
+from typing import Tuple
 from components.model import GraphEncoder
+from components.centralality import calculate_centrality
 
-def generate(df_feature: pd.DataFrame, data: Data, tau: float = 0.5) -> list:
+def generate(df_feature: pd.DataFrame, data: Data, tau: float = 0.5) -> Tuple[list, dict]:
     # 学習用のモデルをロード
     in_channels = data.x.size(-1)
     out_channels = 3
@@ -34,7 +36,8 @@ def generate(df_feature: pd.DataFrame, data: Data, tau: float = 0.5) -> list:
         labeled_sample_list.append([source_label, target_label])
 
     # sampleをNetworkXデータに変換する
-    # generate_graph = nx.Graph()
-    # generate_graph.add_edges_from(sample_list)
-    
-    return labeled_sample_list
+    generate_graph = nx.DiGraph()
+    generate_graph.add_edges_from(labeled_sample_list)
+    centrality = calculate_centrality(generate_graph)
+
+    return labeled_sample_list, centrality

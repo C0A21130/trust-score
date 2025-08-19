@@ -4,6 +4,7 @@ import pandas as pd
 import torch
 from torch_geometric.data import Data
 import networkx as nx
+from typing import Tuple
 from components.centralality import calculate_centrality
 
 class Database:
@@ -19,7 +20,7 @@ class Database:
 
     # 取引データを取得する
     @staticmethod
-    def fetch_transaction(tx, contract_address: str) -> tuple[pd.DataFrame, nx.DiGraph]:
+    def fetch_transaction(tx, contract_address: str) -> Tuple[pd.DataFrame, nx.DiGraph]:
         relation_list = []
         graph = nx.DiGraph()
 
@@ -52,7 +53,7 @@ class Database:
         return relation_list, graph
 
     # 取引データを取得する
-    def get_transaction(self, contract_address: str = "all") -> tuple[pd.DataFrame, nx.DiGraph]:
+    def get_transaction(self, contract_address: str = "all") -> Tuple[pd.DataFrame, nx.DiGraph]:
 
         # neo4jに接続してトランザクションを実行
         with self.driver.session() as session:

@@ -6,6 +6,7 @@ services:
     volumes:
       - ./trust-engine:/trust-engine
     ports:
+      - 9000:9000
       - 8888:8888
     tty: true
     depends_on:
