@@ -7,7 +7,7 @@ class Log(BaseModel):
     """
     Blockchain transaction log
     """
-    token_id: str = Field(..., description="The ID of the token for which logs are requested.")
+    token_id: str = Field(..., description="The ID of the NFT for which logs are requested.")
     from_address: str = Field(..., description="The address from which the logs are requested.")
     to_address: str = Field(..., description="The address to which the logs are requested.")
     block_number: int = Field(..., description="The block number for which logs are requested.")
@@ -24,21 +24,36 @@ class RequestLogs(BaseModel):
     contract_address: str = Field(..., description="The address of the contract for which logs are requested.")
     transfer_logs: list[Log] = Field(..., description="A list of request log entries.")
 
+class AuthRequestBody(BaseModel):
+    """
+    The request body for user authentication
+    """
+    from_address: str = Field(..., description="The address of the user to authenticate.")
+    to_address_list: List[str] = Field(..., description="The addresses of the users to authenticate.")
+
+class User(BaseModel):
+    """
+    Information about a user in the trust scoring system.
+    """
+    address: str = Field(..., description="The address of the user.")
+    trust_score: float | None = Field(None, description="The trust score of the user.")
+    predict_trust_score: float | None = Field(None, description="The predicted trust score of the user.")
+    info: str = Field(..., description="Additional information about the user.")
+
 class State(BaseModel):
     """
     The state for trust scoring agent 
     """
     messages: Annotated[List[BaseMessage], add_messages] = []
-    logs: List[Log] = []
-    contract_address: str = ""
-    my_address: str = ""
-    to_address: str = ""
-    trust_score: float | None = None
-    predict_trust_score: float | None = None
-    transfer_status: bool | None = None
-    status: Literal["start", "regist_score", "get_score", "predict_score", "thinking"] = "start"
+    my_info: User = Field(..., description="Information about the user's own wallet address.")
+    transfer_partners: List[User] = []
+    authorized_user: User | None = Field(..., description="The authorized one user.")
+    status: Literal["start", "thinking", "tool", "end"] = "start"
 
 class OutputJson(BaseModel):
-    message: str = Field(..., description="判断した理由")
-    transfer_status: bool | None = Field(None, description="NFT取引の可否, Trueなら取引可能")
-    status: Literal["regist_score", "get_score", "predict_score"] = Field(..., description="情報が不足している場合はregist_score、情報が十分であればpredict_scoreとする。")
+    """
+    The output format for the trust scoring agent.
+    """
+    message: str = Field(..., description="The message to be authorized to the user.")
+    authorized_user: User | None = Field(None, description="The information of the user who was authorized as a result.")
+    status: Literal["thinking", "tool", "end",] = Field(..., description="If the trading partner can be approved, it will be `end`. If the trading partner cannot be selected, it will be `tool`.")

@@ -4,32 +4,33 @@ from tools.ssdlab_token_abi import token_abi
 from tools.scoring_abi import scoring_abi
 
 class Contract:
-
-    # コントラクトインスタンスの初期化
     def __init__(self, rpc_url: str, token_contract_address: str, scoring_contract_address: str, private_key: str):
         self.w3 = Web3(Web3.HTTPProvider(rpc_url))
         self.token_contract = None
         self.scoring_contract = None
         self.account = None
         self.private_key = private_key
-        
-        # Connect to the Ethereum network
+
+        # Ethereumネットワークへの接続
         if not self.w3.is_connected():
             raise Exception("Failed to connect to the Ethereum network")
-        if self.private_key is None:
+        elif self.private_key is None:
             raise Exception("Private key is None")
         else:
             self.token_contract = self.w3.eth.contract(address=token_contract_address, abi=token_abi)
             self.scoring_contract = self.w3.eth.contract(address=scoring_contract_address, abi=scoring_abi)
             self.account = Account.from_key(private_key)
 
-    # アカウントのアドレスを取得する関数
     def get_address(self) -> str:
-        # This function returns the address of the account.
+        """
+        アカウントのアドレスを取得する
+        """
         return self.account.address
 
-    # トークンの所有者を取得しエッジを追加する関数
     def add_edges(self) -> list:
+        """
+        トークンの所有者を取得し、エッジを追加する
+        """
         tokens = []
         logs = self.token_contract.events.Transfer().get_logs(from_block=0)
 
@@ -40,6 +41,7 @@ class Contract:
             if log["args"]["from"] == log["args"]["to"]:
                 continue
 
+            # トークンの情報を取得
             token = {
                 "from_address": log["args"]["from"],
                 "to_address": log["args"]["to"],
@@ -68,11 +70,15 @@ class Contract:
 
         return tokens
 
-    def regist_score(self, address: str) -> None:
-        self.add_edges()
+    def regist_score(self, address: str, score: float) -> None:
+        """
+        信用スコアをブロックチェーンに登録する
+        """
+        self.add_edges() # 信用スコアを登録する前にエッジを追加
+        score = int(score * 100)
 
         # トランザクションを構築
-        tx = self.scoring_contract.functions.registScore(address).build_transaction({
+        tx = self.scoring_contract.functions.rate(address, score).build_transaction({
             "from": self.account.address,
             "gas": 300000,
             "gasPrice": self.w3.to_wei("50", "gwei"),
@@ -84,6 +90,9 @@ class Contract:
         tx_hash = self.w3.eth.send_raw_transaction(signed_tx.raw_transaction)
         self.w3.eth.wait_for_transaction_receipt(tx_hash)
 
-    def get_score(self, address: str) -> int:
+    def get_score(self, address: str) -> float:
+        """
+        ブロックチェーンに登録された信用スコアを検索して取得する
+        """
         score = self.scoring_contract.functions.ratingOf(address).call()
-        return score
+        return float(score) / 100.0

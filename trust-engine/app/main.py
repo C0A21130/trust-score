@@ -32,11 +32,12 @@ def root():
             "GPU": "Not Available"
         }
 
-def run_train(contract_address):
-# 学習用のデータを取得
+def run_train(contract_address: str) -> None:
+    # 学習用のデータを取得
     df_transaction, graph = database.get_transaction(contract_address=contract_address)
     df_feature = database.get_features(df_transaction=df_transaction, graph=graph)
     data = database.transform_data(df_transaction=df_transaction, df_feature=df_feature)
+    
     # モデルの学習
     train(data)
 
@@ -56,13 +57,25 @@ def generate_network(contract_address: str, tau: float=0.5):
     original_centrality = calculate_centrality(graph=graph)
 
     # ネットワーク生成
-    network_list, predict_centrality = generate(df_feature=df_feature, data=data, tau=tau)
+    predict_centrality = generate(df_feature=df_feature, data=data, tau=tau)
     
     return {
         "message": "Generation finished",
-        "network": network_list,
-        "original centrality": original_centrality,
-        "predict centrality": predict_centrality
+        "centrality": original_centrality,
+        "predict_centrality": predict_centrality
+    }
+
+@app.get("/transaction")
+def get_transaction(contract_address: str, address: str):
+    df_transaction, graph = database.get_transaction(contract_address=contract_address)
+    df_transaction = df_transaction.sort_values(by="blockNumber", ascending=False)
+    result = df_transaction[df_transaction["from"] == address][["from", "to", "tokenUri"]]
+    if result.empty:
+        result = df_transaction[df_transaction["to"] == address][["from", "to", "tokenUri"]]
+
+    return {
+        "message": "Transaction data retrieved",
+        "result": result.iloc[0].to_dict() if not result.empty else None,
     }
 
 @app.on_event("shutdown")
