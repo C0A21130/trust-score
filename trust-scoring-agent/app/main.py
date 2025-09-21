@@ -120,3 +120,9 @@ def get_auth(requestBody: AuthRequestBody):
         "partners": result["transfer_partners"],
         "user": result["authorized_user"]
     }
+
+@app.on_event("shutdown")
+def shutdown_event():
+    global database
+    if database:
+        database.close()

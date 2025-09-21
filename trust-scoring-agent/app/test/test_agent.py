@@ -1,10 +1,12 @@
 import os
+import random
 import pytest
 import requests
 from dotenv import load_dotenv
 from langchain_openai import AzureChatOpenAI
 from components.models import User, State
 from components.trust_scoring_agent import TrustScoringAgent
+from components.database import Database
 from tools.tools import get_tools
 
 @pytest.mark.parametrize(
@@ -241,3 +243,28 @@ def test_auth_api():
     assert response.status_code == 200
     assert "messages" in response_body
     assert "user" in response_body
+
+def test_auth_api_users():
+    load_dotenv()
+    url = "http://trust-scoring-agent:5000/auth"
+    database = Database(url=os.environ["GRAPH_DB_URL"])
+    try:
+        users = database.get_node("0x76B50696B8EFFCA6Ee6Da7F6471110F334536321")
+    finally:
+        database.close()
+
+    # ユーザーのアドレスリストを作成
+    for _ in range(1):
+        partners = random.sample(list(users), 3)
+        header = {
+            "Content-Type": "application/json"
+        }
+        request_body = {
+            "from_address": "0x3B2C649350577c0BFc9875E8C2aeB4ec8141A00A",
+            "to_address_list": partners
+        }
+        response = requests.post(url, headers=header, json=request_body)
+        response_partners = response.json()["partners"]
+        response_users = response.json()["user"]
+        print(response_users)
+

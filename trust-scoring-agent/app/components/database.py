@@ -6,6 +6,11 @@ class Database:
     def __init__(self, url: str) -> None:
         self.driver = GraphDatabase.driver(url)
 
+    def close(self) -> None:
+        if hasattr(self, 'driver') and self.driver:
+            self.driver.close()
+            self.driver = None
+
     @staticmethod
     def _create_addresses(tx, addresses: set) -> None:
         addresses = list(addresses)
@@ -52,6 +57,7 @@ class Database:
             """,
             logs=logs
         )
+        del logs
 
     def save_relationship(self, logs: List[Log]) -> None:
         """
@@ -59,3 +65,30 @@ class Database:
         """
         with self.driver.session() as session:
             session.execute_write(self._create_relationship, logs)
+
+    @staticmethod
+    def _get_node(tx, contract_address: str):
+        """
+        指定されたコントラクトアドレスのノードを取得する
+        """
+        result = tx.run(
+            """
+            MATCH p=()-[r:TRANSFER {contractAddress: $contract_address}]->() 
+            RETURN nodes(p) as nodes
+            """,
+            contract_address=contract_address
+        )
+        nodes = set()
+        for record in result:
+            for node in record["nodes"]:
+                nodes.add(node["address"])
+        del result
+        return nodes
+
+    def get_node(self, contract_address: str):
+        """
+        指定されたコントラクトアドレスのノードを取得する
+        """
+        with self.driver.session() as session:
+            result = session.execute_read(self._get_node, contract_address)
+        return result
