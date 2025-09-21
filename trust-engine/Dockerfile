@@ -42,11 +42,11 @@ COPY requirements.txt /trust-engine/
 RUN pip install --no-cache-dir -U pip
 RUN pip install --no-cache-dir -r /trust-engine/requirements.txt
 
-# Install PyTorch with CUDA 12.8
+# Install PyTorch with CUDA
 RUN pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 
 # Install PyTorch Geometric dependencies
-RUN pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.7.0+cu128.html
+RUN pip install pyg_lib torch_scatter torch_sparse torch_cluster torch_spline_conv -f https://data.pyg.org/whl/torch-2.8.0+cu128.html
 RUN pip install torch_geometric
 
 # Start services(FastAPI & Jupyter Lab)

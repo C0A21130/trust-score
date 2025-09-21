@@ -172,3 +172,4 @@ mongo/logs/
 *.csv
 *.png
 *.pt*
+!docs/images/**/*.png
