@@ -97,6 +97,14 @@ sudo apt-get update
 sudo apt-get -y install cuda-toolkit-13-0
 ```
 
+`/etc/profile`に以下を追加してパスを設定する。
+設定するパスは、自身のインストールしたバージョンやディレクトリ環境に合わせる必要がある。
+
+```bash
+PATH="/usr/local/cuda-13.0/bin:${PATH}"
+export PATH
+```
+
 OSを再起動をしてから、CUDAがインストールされていることを確認する
 
 ```bash
@@ -113,7 +121,7 @@ cuDNNをインストールする
 cuDNNをインストールする
 
 ```bash
-sudo apt-get -y install cudnn
+sudo apt-get -y install nvidia-cudnn
 ```
 
 インストールされていることを確認する
@@ -123,6 +131,14 @@ dpkg -l | grep cudnn
 ```
 
 ## Install NVIDIA Container Toolkit
+
+もしDockerのインストールを完了していない場合は、[https://docs.docker.com/engine/install/ubuntu/](https://docs.docker.com/engine/install/ubuntu/)を参照してインストールする。
+インストール後は、管理者(root)権限がなくても実行可能に設定する。
+
+```bash
+sudo groupadd docker
+sudo gpasswd -a $USER docker
+```
 
 DockerでGPUが利用できるようにプラグインをインストールする。
 - [Installing the NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)のサイトにアクセスしインストール方法を確認する。

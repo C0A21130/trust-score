@@ -36,6 +36,7 @@ def run_train(contract_address: str) -> None:
     # 学習用のデータを取得
     df_transaction, graph = database.get_transaction(contract_address=contract_address)
     df_feature = database.get_features(df_transaction=df_transaction, graph=graph)
+    df_feature = (df_feature - df_feature.min()) / (df_feature.max() - df_feature.min())
     data = database.transform_data(df_transaction=df_transaction, df_feature=df_feature)
     
     # モデルの学習
@@ -47,22 +48,24 @@ def train_model(background_tasks: BackgroundTasks, contract_address: str = "all"
     return {"message": "Training started"}
 
 @app.get("/generate")
-def generate_network(contract_address: str, tau: float=0.5):
+def generate_network(contract_address: str):
     # 生成に必要なデータを取得
     df_transaction, graph = database.get_transaction(contract_address=contract_address)
     df_feature = database.get_features(df_transaction=df_transaction, graph=graph)
+    df_feature = (df_feature - df_feature.min()) / (df_feature.max() - df_feature.min())
     data = database.transform_data(df_transaction=df_transaction, df_feature=df_feature)
 
     # 元の中心性を取得
     original_centrality = calculate_centrality(graph=graph)
 
     # ネットワーク生成
-    predict_centrality = generate(df_feature=df_feature, data=data, tau=tau)
+    predict_result = generate(df_feature=df_feature, data=data)
     
     return {
         "message": "Generation finished",
         "centrality": original_centrality,
-        "predict_centrality": predict_centrality
+        "predict_centrality": predict_result["centrality"],
+        "generate_graph": predict_result["edges_list"]
     }
 
 @app.get("/transaction")

@@ -5,7 +5,7 @@ from torch_geometric.data import Data
 from torch_geometric.nn import VGAE
 from components.model import GraphEncoder
 
-def train(data: Data, epoch_num: int = 300):
+def train(data: Data, epoch_num: int = 100):
     # logging設定
     formatter = logging.Formatter('%(asctime)s - [%(levelname)s] - %(message)s')
     logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ def train(data: Data, epoch_num: int = 300):
     
     # 特徴量の次元数、MLモデルを設定
     in_channels = data.x.size(-1)
-    out_channels = 3
+    out_channels = data.x.size(-1)
     model = VGAE(GraphEncoder(in_channels=in_channels, out_channels=out_channels))
     logger.info("=== ML Model Info ===")
     logger.info(f"Input Feature Dimension: {in_channels}")
@@ -59,3 +59,4 @@ def train(data: Data, epoch_num: int = 300):
                 'loss': loss,
             }, os.path.join("data", 'best_model.pt'))
         logger.info(f"Epoch: {epoch}, Loss: {loss.item()}, Best Loss: {best_loss.item()}")
+    logger.info("=== Training Finished ===")

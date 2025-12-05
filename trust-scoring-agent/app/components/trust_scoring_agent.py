@@ -1,21 +1,26 @@
 from typing import List, Literal
-import base64
-import json
-import requests
-from langchain_core.prompts import ChatPromptTemplate
-from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import SystemMessage, HumanMessage
-from components.models import State, User, OutputJson
+from langfuse.langchain import CallbackHandler
+from .models import State, User
+from .tools.contract import Contract
+from .tools.engine import Engine
 
 class TrustScoringAgent:
-    def __init__(self, model, tools: list, contract_address: str, handler=None):
+    def __init__(self, model, blockchain_url: str, engine_url: str, token_contract_address: str, scoring_contract_address: str, private_key: str):
         self.model = model
-        self.tools = tools
-        self.contract_address = contract_address
-        self.config = {"callbacks": [handler]}
+        self.private_key = private_key
+        self.contract = Contract(
+            rpc_url=blockchain_url,
+            token_contract_address=token_contract_address,
+            scoring_contract_address=scoring_contract_address,
+            private_key=private_key
+        )
+        self.engine = Engine(engine_url)
+        langfuse_handler = CallbackHandler()
+        self.config = {"callbacks": [langfuse_handler]}
     
     @staticmethod
-    def get_route(state: State) -> Literal["thinking", "tool", "end"]:
+    def get_route(state: State) -> Literal["fetchTransaction", "report"]:
         """
         現在の状態に応じたノードの遷移先を決定する
         """
@@ -28,68 +33,10 @@ class TrustScoringAgent:
         else:
             return "thinking"
 
-    def create_user_list_prompt(self, state: State) -> str:
+    def create_info(self, name: str, description: str, image_base64: str) -> str:
         """
-        ユーザー一覧のプロンプトを作成する
+        画像を認識して説明文を生成する
         """
-
-        # ユーザー一覧のプロンプトを作成
-        user_list = f"""
-        ## Content for User List
-        - Trust Score
-            - 取引相手に関する(過去の取引履歴やユーザーの特徴を元に算出される)信用度を定量化したスコア
-            - ネットワーク中心性(次数中心性・媒介中心性・PageRank)に基づいて算出される
-        - Predict Trust Score
-            - 一般的信頼とは相手についての情報が少ない場合の相手の信頼性に対するデフォルト値
-            - GNN(Graph Neural Network)による取引予測によって算出される
-        - Transaction Network
-            - ユーザー間の取引関係を示すグラフ構造
-            - ノードはユーザーを、エッジは取引を表す
-
-        ## User List
-
-        """
-        user_list += f"""
-        **Information for Me**
-        - Address: {state.my_info.address}
-        - Trust Score: {state.my_info.trust_score if state.my_info.trust_score is not None else "未登録"}
-        - Predict Trust Score: {state.my_info.predict_trust_score if state.my_info.predict_trust_score is not None else "未登録"}
-        - Information: {state.my_info.info if state.my_info.info is not None else "未登録"}
-        
-        """
-        user_list += "**Information for Transfer Partners**\n"
-        user_list += "\n".join([
-            f"""
-            User {i + 1}:
-            - Address: {user.address}
-            - Trust Score: {user.trust_score if user.trust_score is not None else '未登録'}
-            - Predict Trust Score: {user.predict_trust_score if user.predict_trust_score is not None else '未登録'}
-            - Information: {user.info if user.info is not None else '未登録'}
-            """
-            for i, user in enumerate(state.transfer_partners)
-        ])
-        return user_list
-
-    def create_info(self, tokenUri: str) -> str:
-        """
-        Token URIから最近の取引情報を取得し、画像を認識して説明文を生成する
-        """
-        try:
-            meta_data = base64.b64decode(tokenUri.split(",")[1])
-            meta_data_dict = json.loads(meta_data)
-            ipfs_url = meta_data_dict["image"]
-            name = meta_data_dict["name"]
-            description = meta_data_dict["description"]
-            response = requests.get(f"https://ipfs.io/ipfs/{ipfs_url.split('/')[-1]}")
-            if response.status_code == 200:
-                image = response.content
-                image_base64 = base64.b64encode(image).decode("utf-8")
-        except (IndexError, json.JSONDecodeError):
-            print(tokenUri)
-            response = requests.get(tokenUri)
-            image_base64 = base64.b64encode(response.content).decode("utf-8")
-
-        # 画像を認識して説明文を生成
         message = HumanMessage(
             content=[
                 {"type": "text", "text": f"This is the image associated with the NFT({name}). You will need to extract a description of the image and any trust information associated with it. Description: {description}"},
@@ -101,111 +48,16 @@ class TrustScoringAgent:
 
     def get_agent(self, state: State) -> State:
         """
-        エージェントを取得する。
-        事前に信用スコアを計算し信用スコアに基づいて取引相手を認可する。
-        """
-        # 出力形式を定義
-        output_parser = PydanticOutputParser(pydantic_object=OutputJson)
-        format_instructions = output_parser.get_format_instructions()
-
-        # プロンプトテンプレートを作成
-        prompt_template = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    """
-                    # Trust Scoring Agent
-
-                    ## Overview
-                    あなたは、信用スコアに基づいてNFT(Non-Fungible Token)の取引相手を認可するエージェントです。
-                    取引相手のウォレットアドレスを`Trust Score`や`Predict Trust Score`に基づいた信用スコアに基づいて選択します。
-                    ユーザーの追加情報に基づいて`Trust Score`に加点してください。
-                    - NFTが信頼できる発行元から発行されている → +0.01
-                    - 画像が信頼できるものである → +0.01
-                    - NFTからユーザーのスキルを証明可能 → +0.01
-
-                    ## ステップ
-                    1. `tool`を呼び出して信用スコアを計算する
-                    2. もし`Trust Score`や`Predict Trust Score`に0.05以下しか差がない場合は`tool`を呼び出す
-                    3. 信用スコアから認可する取引相手`authorized_user`を選択する(もし認可できない場合は`authorized_user`を`None`にする)
-
-                    ## 出力形式
-                    {format_instructions}
-                    """
-                ),
-                (
-                    "system",
-                    "{user_list_prompt}"
-                )
-            ]
-        )
-        user_list_prompt = self.create_user_list_prompt(state)
-        prompt = prompt_template.partial(
-            format_instructions=format_instructions,
-            user_list_prompt=user_list_prompt
-        )
-
-        # モデルを実行
-        agent = prompt | self.model | output_parser
-        if self.config["callbacks"][0] == None:
-            output: OutputJson = agent.invoke({"input": ""})
-        else:
-            output: OutputJson = agent.invoke({"input": ""}, config=self.config)
-        
-        return State(
-            messages=[SystemMessage(output.message)],
-            my_info=state.my_info,
-            transfer_partners=state.transfer_partners,
-            authorized_user=output.authorized_user if output.authorized_user else None,
-            status="thinking" if output.status == "end" and output.authorized_user == None else output.status
-        )
-
-    def get_bind_tool_agent(self, state: State) -> State:
-        """
         ツールをバインドさせたエージェントを取得する。
         Tool Callingを使用して動的にツールを呼び出す。
         """
-        message = ""
+        new_message = ""
         my_info: User = state.my_info
-        transfer_partners: List[User] = state.transfer_partners
+        transfer_partners = state.transfer_partners
+        new_predict_score = None
+        new_status = "thinking"
 
-        # 信用スコアを登録する
-        if(state.status == "end"):
-            self.tools[0].invoke({
-                "address": state.authorized_user.address,
-                "score": state.authorized_user.trust_score
-            })
-            message += f"{state.authorized_user.address}の信用スコアが登録されました"
-            return state
-
-        # プロンプトを作成
-        prompt_template = ChatPromptTemplate.from_messages(
-            [
-                (
-                    "system",
-                    """
-                    # Trust Scoring Agent
-                    ユーザーの入力情報を基に信用スコアを計算し、NFTの取引を認可するエージェント
-                    必要な情報を取得するためのツールを選択してください
-                    `contract_address`は {contract_address}
-
-                    ## ステップ
-                    1. `User List`の`Trust Score`や`Predict Trust Score`が未登録なら`predict_score`を呼び出す
-                    2. `Trust Score`や`Predict Trust Score`に0.05以下でしか差がない場合は`get_transaction`を呼び出す
-                    3. `User List`をもとに、認可する取引相手`authorized_user`を選択する
-                    """
-                ),
-                (
-                    "system",
-                    "{user_list_prompt}"
-                )
-            ]
-        )
-        user_list_prompt = self.create_user_list_prompt(state)
-        prompt = prompt_template.format_messages(
-            contract_address=self.contract_address,
-            user_list_prompt=user_list_prompt,
-        )
+        prompt = self.create_prompt(state)
 
         # モデルにツールをバインドさせて実行
         model_with_tool = self.model.bind_tools(self.tools)
@@ -216,20 +68,7 @@ class TrustScoringAgent:
         
         # モデルの呼び出し結果を基にツールを実行
         for tool_call in output.tool_calls:
-            print(tool_call["name"])
-            if tool_call["name"] == "predict_score":
-                my_score, partner_scores = self.tools[1].invoke(tool_call["args"])
-                message = "信用スコアを予測しました"
-                my_info = User(address=state.my_info.address, trust_score=my_score["score"], predict_trust_score=my_score["predict_score"], info=state.my_info.info)
-                transfer_partners = [
-                    User(
-                        address=user.address,
-                        trust_score=partner_scores[user.address]["score"],
-                        predict_trust_score=partner_scores[user.address]["predict_score"],
-                        info=user.info
-                    ) for user in state.transfer_partners
-                ]
-            elif tool_call["name"] == "get_transaction":
+            if tool_call["name"] == "fetchTransaction":
                 user_info = self.tools[2].invoke(tool_call["args"])
                 info = self.create_info(user_info["result"]["tokenUri"])
                 message = "ユーザーの追加情報を取得しました"
@@ -241,6 +80,17 @@ class TrustScoringAgent:
                         info=info if partner.address in [user_info["result"]["from"], user_info["result"]["to"]] else partner.info
                     ) for partner in state.transfer_partners
                 ]
+            elif tool_call["name"] == "sumarizeTransaction":
+                summary = self.tools[3].invoke(tool_call["args"])
+                message = "ユーザーの追加情報を要約しました"
+                transfer_partners = [
+                    User(
+                        address=partner.address,
+                        trust_score=partner.trust_score,
+                        predict_trust_score=partner.predict_trust_score,
+                        info=summary["result"] if partner.address == tool_call["args"]["address"] else partner.info
+                    ) for partner in state.transfer_partners
+                ]
 
         return State(
             messages=[SystemMessage(message)],
@@ -249,3 +99,65 @@ class TrustScoringAgent:
             authorized_user=state.authorized_user,
             status="thinking"
         )
+        
+    def auth(self, contract_address: str, from_address: str, to_address_list: List[str]) -> dict:
+        """
+        取引先の信頼スコアを評価し、ユーザーを認可する
+        1. 信用スコアを予測
+        2. fromとtoの信用スコアをブロックチェーンに登録
+        3. スマートコントラクトが信用スコアに基づいて認可するユーザーを決定
+        4. グラフから取引相手を選択する
+        5. 認可するユーザーを返す
+        """
+        authorized_users = []       # 生成されたグラフの中心性と隣接するユーザーから認可するユーザーを決定
+        authorized_score_users = [] # 生成されたグラフの中心性のみから認可するユーザーを決定
+        authorized_graph_users = [] # 生成されたグラフの隣接するユーザーのみから認可するユーザーを決定
+
+        # 信用スコアを予測
+        result_score = self.engine.predict_score(contract_address=contract_address)
+        original_scores = result_score.get("original_score", {})
+        predict_scores = result_score.get("predict_score", {})
+        generate_graph = result_score.get("generate_graph", [])
+        from_score = max(
+            original_scores.get(from_address, 0.0),
+            predict_scores.get(from_address, 0.0)
+        )
+
+        # fromとtoの信用スコアで最も高いスコアをブロックチェーンに登録
+        self.contract.regist_score(address=from_address, score=from_score)
+        for to_address in to_address_list:
+            to_original_score = original_scores.get(to_address, 0.0)
+            to_predict_score = predict_scores.get(to_address, 0.0)
+            to_score = max(to_original_score, to_predict_score)
+            self.contract.regist_score(address=to_address, score=to_score)
+
+        # 信用スコアに基づいて認可するユーザーを決定
+        authorized_score_users = []
+        for to_address in to_address_list:
+            result_compare = self.contract.compare_score(from_address, to_address)
+            if result_compare == 1 or result_compare == True:
+                authorized_users.append(to_address)
+                authorized_score_users.append(to_address)
+
+        # 生成されたグラフから隣接する取引相手を選択する
+        for edge in generate_graph:
+            source = target = None
+            if isinstance(edge, (list, tuple)) and len(edge) >= 2:
+                source, target = edge[0], edge[1]
+            if source == from_address and target is not None:
+                authorized_users.append(target)
+                authorized_graph_users.append(target)
+
+
+        # 認可するユーザーを返す
+        return {
+            "authorized_users": authorized_users,
+            "authorized_graph_users": authorized_graph_users,
+            "authorized_score_users": authorized_score_users
+        }
+
+    def faucet(self, address: str) -> bool:
+        """
+        テスト用のトークンを配布する
+        """
+        return self.contract.faucet(address)

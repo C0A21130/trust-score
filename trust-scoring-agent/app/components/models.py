@@ -28,6 +28,7 @@ class AuthRequestBody(BaseModel):
     """
     The request body for user authentication
     """
+    contract_address: str = Field(..., description="The address of the contract for which authentication is requested.")
     from_address: str = Field(..., description="The address of the user to authenticate.")
     to_address_list: List[str] = Field(..., description="The addresses of the users to authenticate.")
 
@@ -48,12 +49,5 @@ class State(BaseModel):
     my_info: User = Field(..., description="Information about the user's own wallet address.")
     transfer_partners: List[User] = []
     authorized_user: User | None = Field(..., description="The authorized one user.")
-    status: Literal["start", "thinking", "tool", "end"] = "start"
+    status: Literal["start", "fetchScore", "compareScore", "fetchTransaction", "sumarizeTransaction", "report"] = "start"
 
-class OutputJson(BaseModel):
-    """
-    The output format for the trust scoring agent.
-    """
-    message: str = Field(..., description="The message to be authorized to the user.")
-    authorized_user: User | None = Field(None, description="The information of the user who was authorized as a result.")
-    status: Literal["thinking", "tool", "end",] = Field(..., description="If the trading partner can be approved, it will be `end`. If the trading partner cannot be selected, it will be `tool`.")

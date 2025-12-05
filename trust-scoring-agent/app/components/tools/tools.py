@@ -1,3 +1,6 @@
+import base64
+import json
+import requests
 from typing import Annotated, List, Tuple
 from langchain_core.tools import tool
 from tools.contract import Contract
@@ -21,26 +24,7 @@ def get_tools(rpc_url: str, url: str, token_contract_address: str, scoring_contr
     engine = Engine(url=url)
 
     @tool
-    def regist_score(
-        address: Annotated[str, "The address to register the score for"],
-        score: Annotated[float, "The score to register"]
-    ) -> None:
-        """
-        Register a score for a specific address on the blockchain.
-        """
-        contract.regist_score(address, score)
-
-    @tool
-    def get_score(
-        address: Annotated[str, "The address to get the score for"]
-    ) -> float:
-        """
-        Get the score for a specific address.
-        """
-        return contract.get_score(address)
-    
-    @tool
-    def predict_score(
+    def fetch_score(
         my_address: Annotated[str, "The my user's address"],
         address_list: Annotated[List[str], "The list of multiple user`s addressess to get scores for"],
         contract_address: Annotated[str, "The contract address for NFT collection"]
@@ -80,7 +64,31 @@ def get_tools(rpc_url: str, url: str, token_contract_address: str, scoring_contr
         return my_score, partner_scores
 
     @tool
-    def get_transaction(
+    def compare_score(
+        myScore: Annotated[float, "The first score to compare"],
+        targetScore: Annotated[float, "The second score to compare"]
+    ) -> bool:
+        """
+        Compare two scores and return True if the difference is less than or equal to 0.05, otherwise return False.
+        """
+        diff = abs(myScore - targetScore)
+        if myScore > targetScore:
+            return True
+        else:
+            return False if diff > 0.05 else True
+
+    @tool
+    def regist_score(
+        address: Annotated[str, "The address to register the score for"],
+        score: Annotated[float, "The score to register"]
+    ) -> None:
+        """
+        Register a score for a specific address on the blockchain.
+        """
+        contract.regist_score(address, score)
+
+    @tool
+    def fetch_transaction(
         contract_address: Annotated[str, "The contract address"],
         address: Annotated[str, "The user address for filtering"]
     ) -> dict:
@@ -90,6 +98,27 @@ def get_tools(rpc_url: str, url: str, token_contract_address: str, scoring_contr
         You can use the information obtained from this tool to make a more informed decision about whether to authorize the user or not.
         """
         result = engine.get_transaction(contract_address=contract_address, address=address)
-        return result if result else {}
+        
+        try:
+            meta_data = base64.b64decode(result.split(",")[1])
+            meta_data_dict = json.loads(meta_data)
+            ipfs_url = meta_data_dict["image"]
+            name = meta_data_dict["name"]
+            description = meta_data_dict["description"]
+            response = requests.get(f"https://ipfs.io/ipfs/{ipfs_url.split('/')[-1]}")
+            if response.status_code == 200:
+                image = response.content
+                image_base64 = base64.b64encode(image).decode("utf-8")
+                return image_base64
+        except (IndexError, json.JSONDecodeError):
+            print(result)
+            response = requests.get(result)
+            image_base64 = base64.b64encode(response.content).decode("utf-8")
+            return image_base64
 
-    return [ regist_score, predict_score, get_transaction ]
+    return {
+        "fetch_score": fetch_score,
+        "compare_score": compare_score,
+        "regist_score": regist_score,
+        "fetch_transaction": fetch_transaction,
+    }

@@ -57,7 +57,8 @@ Trust Scoreing Systemでは、認可サーバーの代替としてWeb3サービ�
 .
 ├── docs: 開発者用ドキュメント
 │   ├── images
-│   ├── environment.md
+│   ├── basic.md: GNNの基本的な実装方法について紹介している
+│   ├── environment.md: 
 │   ├── trust-engine.md
 │   └── trust-scoring-agent.md
 ├── mongo: オブジェクトデータベースに関わるディレクトリ
@@ -106,9 +107,9 @@ docker-compose up -d
 - [http://localhost:9000/docs](http://localhost:9000)にアクセス
 
 **Jupyter-lab**
-- Jupyter-labではネットワーク分析やGNNの動作を確認することが可能である
-- [http://localhost:8888](http://localhost:8888)にアクセスすることで利用可能
-- [/trust-engine/basic](/trust-engine/basic/)の`ipynb`ファイルを参照することで検証することが可能である
+- Jupyter-labではネットワーク分析やGNNの動作の確認や基本的な実装方法を参照することが可能である
+- [http://localhost:8888](http://localhost:8888)からアクセスし[/trust-engine/basic](/trust-engine/basic/)の`ipynb`ファイルを参照することで利用することが可能である
+- より詳しい説明については[basic.md](/docs/basic.md)を参照
 
 ## Reference
 
