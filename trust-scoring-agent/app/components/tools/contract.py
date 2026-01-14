@@ -46,13 +46,6 @@ class Contract:
         score = self.scoring_contract.functions.ratingOf(address).call()
         return float(score) / 100.0
 
-    def compare_score(self, address1: str, address2: str) -> float:
-        """
-        2つのアドレスの信用スコアを比較する
-        """
-        result_auth = self.scoring_contract.functions.compare(address1, address2).call()
-        return result_auth
-
     def faucet(self, address: str) -> bool:
         """
         スマートコントラクトにETHを送信し、指定したアドレスにスマートコントラクトからETHを送信する
@@ -97,3 +90,26 @@ class Contract:
             print(f"Error sending faucet transaction: {e}")
             return False
         return True
+
+    def fetch_tokens(self) -> list[dict]:
+        """
+        スマートコントラクトから転送されたNFTトークンの情報を取得する
+        """
+        tokens: list[dict] = []
+        logs = self.token_contract.events.Transfer().get_logs(from_block=0)
+        for log in logs:
+            # ミント（0x0からの転送）は除外
+            if log["args"]["from"] == "0x0000000000000000000000000000000000000000":
+                continue
+            gas_price = self.w3.eth.get_transaction(log["transactionHash"])["gasPrice"]
+            gas_used = self.w3.eth.get_transaction_receipt(log["transactionHash"])["gasUsed"]
+            token = {
+                "from": log["args"]["from"],
+                "to": log["args"]["to"],
+                "tokenId": log["args"]["tokenId"],
+                "gasPrice": gas_price,
+                "gasUsed": gas_used,
+                "blockNumber": log["blockNumber"],
+            }
+            tokens.append(token)
+        return tokens

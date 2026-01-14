@@ -48,34 +48,6 @@ def test_get_score(score):
     assert result_score is not None
     assert isinstance(result_score, float)
 
-@pytest.mark.parametrize(
-    ["user1_score", "user2_score", "expected"],
-    [
-        (0.1, 0.2, False),
-        (0.3, 0.1, True),
-        (0.5, 0.5, True),
-    ]
-)
-def test_compare_scores(user1_score, user2_score, expected):
-    # Arrange
-    w3 = Web3()
-    user1_address = w3.eth.account.create().address
-    user2_address = w3.eth.account.create().address
-
-    # Act
-    contract.regist_score(user1_address, user1_score)
-    contract.regist_score(user2_address, user2_score)
-    score1 = contract.get_score(user1_address)
-    score2 = contract.get_score(user2_address)
-    result = contract.compare_score(user1_address, user2_address)
-
-    # Assert
-    assert score1 is not None
-    assert score2 is not None
-    assert isinstance(score1, float)
-    assert isinstance(score2, float)
-    assert result is expected
-
 def test_faucet():
     # Arrange
     w3 = Web3()
@@ -86,3 +58,13 @@ def test_faucet():
 
     # Assert
     assert result is True 
+
+def test_fetch_tokens():
+    # Act
+    results = contract.fetch_tokens()
+
+    # Assert
+    assert results is not None
+    assert isinstance(results, list)
+    if results:
+        assert isinstance(results[0], dict)

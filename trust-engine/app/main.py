@@ -5,6 +5,7 @@ from components.database import Database
 from components.train import train
 from components.generate import generate
 from components.centralality import calculate_centrality
+from components.model import GenerateRequestBody
 
 app = FastAPI()
 database = Database('neo4j://graph-db:7687')
@@ -36,7 +37,13 @@ def run_train(contract_address: str) -> None:
     # 学習用のデータを取得
     df_transaction, graph = database.get_transaction(contract_address=contract_address)
     df_feature = database.get_features(df_transaction=df_transaction, graph=graph)
-    df_feature = (df_feature - df_feature.min()) / (df_feature.max() - df_feature.min())
+
+    # 標準化
+    feature_means = df_feature.mean()
+    feature_stds = df_feature.std(ddof=0).replace(0, 1)
+    df_feature = (df_feature - feature_means) / feature_stds
+
+    # データ型の変換
     data = database.transform_data(df_transaction=df_transaction, df_feature=df_feature)
     
     # モデルの学習
@@ -48,11 +55,24 @@ def train_model(background_tasks: BackgroundTasks, contract_address: str = "all"
     return {"message": "Training started"}
 
 @app.get("/generate")
-def generate_network(contract_address: str):
-    # 生成に必要なデータを取得
-    df_transaction, graph = database.get_transaction(contract_address=contract_address)
+def generate_network(requestBody: GenerateRequestBody):
+    # リクエストボディからパラメータを取得
+    transactions = requestBody.transactions
+    contract_address = requestBody.contract_address
+
+    # 取引データの取得
+    if transactions is not None:
+        df_transaction, graph = database.get_transaction(contract_address=contract_address)
+    else:
+        df_transaction, graph = database.create_transaction_df(transactions=transactions)
     df_feature = database.get_features(df_transaction=df_transaction, graph=graph)
-    df_feature = (df_feature - df_feature.min()) / (df_feature.max() - df_feature.min())
+
+    # 標準化
+    feature_means = df_feature.mean()
+    feature_stds = df_feature.std(ddof=0).replace(0, 1)
+    df_feature = (df_feature - feature_means) / feature_stds
+
+    # データ型の変換
     data = database.transform_data(df_transaction=df_transaction, df_feature=df_feature)
 
     # 元の中心性を取得

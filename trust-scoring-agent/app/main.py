@@ -36,6 +36,9 @@ app.add_middleware(
 
 @app.get("/")
 def get_root():
+    # 契約の初期化を確認
+    if trust_score_agent.contract is None:
+        raise HTTPException(status_code=500, detail="Failed to connect to the Ethereum network or initialize contracts.\nPlease check the RPC URL and restart the server.")
     return {"message": "Welcome to the Scoring Engine API"}
 
 @app.post("/logs")
@@ -65,7 +68,8 @@ def get_auth(request_body: AuthRequestBody):
         result = trust_score_agent.auth(
             contract_address=contract_address,
             from_address=from_address,
-            to_address_list=to_address_list
+            to_address_list=to_address_list,
+            requireFetch=True
         )
         return {
             "message": "Authorization process completed",

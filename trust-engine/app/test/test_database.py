@@ -99,3 +99,47 @@ def test_transform_data():
     assert data.edge_index.shape == (2, 2)  # 2 edges
     assert isinstance(data.x, torch.Tensor)
     assert isinstance(data.edge_index, torch.Tensor)
+    
+def test_create_transaction_df():
+    """Web3トランザクションリストからDataFrameとグラフを生成するテスト"""
+    db = Database.__new__(Database)  # driver接続を避けてメソッドだけ利用
+    transactions = [
+        {
+            "tokenId": "1",
+            "from": "addr1",
+            "to": "addr2",
+            "gasPrice": 100.0,
+            "gasUsed": 21000.0,
+            "contractAddress": "contract1",
+            "tokenUri": "uri1",
+            "blockNumber": 1000,
+        },
+        {
+            "token_id": "2",
+            "from_address": "addr2",
+            "to_address": "addr3",
+            "gas_price": 200.0,
+            "gas_used": 25000.0,
+            "contract_address": "contract1",
+            "token_uri": "uri2",
+            "block_number": 1001,
+        },
+    ]
+
+    df_transaction, graph = db.create_transaction_df(transactions)
+
+    assert isinstance(df_transaction, pd.DataFrame)
+    assert list(df_transaction.columns) == [
+        "tokenId",
+        "from",
+        "to",
+        "gasPrice",
+        "gasUsed",
+        "contractAddress",
+        "tokenUri",
+        "blockNumber",
+    ]
+    assert df_transaction.shape[0] == 2
+    assert set(df_transaction["from"]) == {"addr1", "addr2"}
+    assert graph.number_of_nodes() == 3
+    assert graph.number_of_edges() == 2

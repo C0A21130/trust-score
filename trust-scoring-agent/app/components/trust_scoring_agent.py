@@ -9,15 +9,20 @@ class TrustScoringAgent:
     def __init__(self, model, blockchain_url: str, engine_url: str, token_contract_address: str, scoring_contract_address: str, private_key: str):
         self.model = model
         self.private_key = private_key
-        self.contract = Contract(
-            rpc_url=blockchain_url,
-            token_contract_address=token_contract_address,
-            scoring_contract_address=scoring_contract_address,
-            private_key=private_key
-        )
         self.engine = Engine(engine_url)
         langfuse_handler = CallbackHandler()
         self.config = {"callbacks": [langfuse_handler]}
+
+        try:
+            self.contract = Contract(
+                rpc_url=blockchain_url,
+                token_contract_address=token_contract_address,
+                scoring_contract_address=scoring_contract_address,
+                private_key=private_key
+            )
+        except Exception as e:
+            self.contract = None
+            print(f"Error initializing Contract: {e}")
     
     @staticmethod
     def get_route(state: State) -> Literal["fetchTransaction", "report"]:
@@ -100,44 +105,39 @@ class TrustScoringAgent:
             status="thinking"
         )
         
-    def auth(self, contract_address: str, from_address: str, to_address_list: List[str]) -> dict:
+    def auth(self, contract_address: str, from_address: str, to_address_list: List[str], requireFetch: bool = False) -> dict:
         """
         取引先の信頼スコアを評価し、ユーザーを認可する
         1. 信用スコアを予測
         2. fromとtoの信用スコアをブロックチェーンに登録
         3. スマートコントラクトが信用スコアに基づいて認可するユーザーを決定
-        4. グラフから取引相手を選択する
-        5. 認可するユーザーを返す
+        4. 信用スコアをブロックチェーンに記録
         """
         authorized_users = []       # 生成されたグラフの中心性と隣接するユーザーから認可するユーザーを決定
         authorized_score_users = [] # 生成されたグラフの中心性のみから認可するユーザーを決定
         authorized_graph_users = [] # 生成されたグラフの隣接するユーザーのみから認可するユーザーを決定
 
-        # 信用スコアを予測
-        result_score = self.engine.predict_score(contract_address=contract_address)
+        # トラストエンジンに問い合わせて信用スコアを予測
+        if not requireFetch:
+            result_score = self.engine.predict_score(contract_address=contract_address)
+        else:
+            transactions = self.contract.fetch_tokens()
+            result_score = self.engine.predict_score(contract_address=contract_address, transactions=transactions)
         original_scores = result_score.get("original_score", {})
         predict_scores = result_score.get("predict_score", {})
         generate_graph = result_score.get("generate_graph", [])
+
+        # fromとtoの信用スコアで最も高いスコアをブロックチェーンに登録
         from_score = max(
             original_scores.get(from_address, 0.0),
             predict_scores.get(from_address, 0.0)
         )
-
-        # fromとtoの信用スコアで最も高いスコアをブロックチェーンに登録
         self.contract.regist_score(address=from_address, score=from_score)
         for to_address in to_address_list:
             to_original_score = original_scores.get(to_address, 0.0)
             to_predict_score = predict_scores.get(to_address, 0.0)
             to_score = max(to_original_score, to_predict_score)
             self.contract.regist_score(address=to_address, score=to_score)
-
-        # 信用スコアに基づいて認可するユーザーを決定
-        authorized_score_users = []
-        for to_address in to_address_list:
-            result_compare = self.contract.compare_score(from_address, to_address)
-            if result_compare == 1 or result_compare == True:
-                authorized_users.append(to_address)
-                authorized_score_users.append(to_address)
 
         # 生成されたグラフから隣接する取引相手を選択する
         for edge in generate_graph:
@@ -147,7 +147,6 @@ class TrustScoringAgent:
             if source == from_address and target is not None:
                 authorized_users.append(target)
                 authorized_graph_users.append(target)
-
 
         # 認可するユーザーを返す
         return {

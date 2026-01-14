@@ -133,3 +133,60 @@ class Database:
         x = torch.tensor(df_feature.loc[unique_nodes].values, dtype=torch.float)
         data = Data(x=x, edge_index=edge_index)
         return data
+
+    def create_transaction_df(self, transactions: list) -> Tuple[pd.DataFrame, nx.DiGraph]:
+        # Web3経由で取得したトランザクションリストをneo4j取得分と同じ形式に正規化する
+        columns = [
+            "tokenId",
+            "from",
+            "to",
+            "gasPrice",
+            "gasUsed",
+            "contractAddress",
+            "tokenUri",
+            "blockNumber",
+        ]
+        graph = nx.DiGraph()
+
+        if not transactions:
+            empty_df = pd.DataFrame(columns=columns).astype({
+                "tokenId": "string",
+                "from": "string",
+                "to": "string",
+                "gasPrice": "float32",
+                "gasUsed": "float32",
+                "contractAddress": "string",
+                "tokenUri": "string",
+                "blockNumber": "uint32",
+            })
+            return empty_df, graph
+
+        relation_list = []
+        for tx in transactions:
+            from_addr = tx.get("from")
+            to_addr = tx.get("to")
+
+            entry = {
+                "tokenId": str(tx.get("tokenId")),
+                "from": str(from_addr),
+                "to": str(to_addr),
+                "gasPrice": float(tx.get("gasPrice")or 0.0),
+                "gasUsed": float(tx.get("gasUsed") or 0.0),
+                "contractAddress": "",
+                "blockNumber": int(tx.get("blockNumber") or 0),
+            }
+            relation_list.append(entry)
+            graph.add_edge(entry["from"], entry["to"])
+
+        df_transaction = pd.DataFrame(relation_list).astype({
+            "tokenId": "string",
+            "from": "string",
+            "to": "string",
+            "gasPrice": "float32",
+            "gasUsed": "float32",
+            "contractAddress": "string",
+            "tokenUri": "string",
+            "blockNumber": "uint32",
+        }, copy=False)
+
+        return df_transaction, graph
