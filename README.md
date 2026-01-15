@@ -5,24 +5,18 @@ GNNベースの信用スコアリングにより、Web3サービスの初期段�
 Keywords: Web3, Graph Neural Network(GNN), Network Analysis, Non-Fungible Token(NFT), AI Agent, Blockchain
 
 ## Overview
+Trust Scoreing Systemは、Web2サービスにおけるユーザーの信用度に基づいてアクセス制御するシステムである。
+過去のNon-Fungible Token(NFT)の取引履歴からユーザーの間の関係をネットワーク形式で構築する。
+Graph Nuural Network(GNN)の中でもVGAE(Variational Graph Auto-Encoder)を活用してネットワークに対してリンク予測することにより，ユーザー間のつながり度合いを推定する。
+つながり度合いを推定した過去の取引履歴からユーザーの信用度を算出する。
 
-Web3サービスはブロックチェーン技術により、中央管理者やサーバーを持たずに提供される。
-しかし、認可サーバーが存在しないため、ユーザー間のアクセス制御が困難であり、安全なサービス提供に課題がある。
-Trust Scoreing Systemでは、認可サーバーの代替としてWeb3サービスで機能するシステムである。
+## システムアーキテクチャ
 
-- NFT取引ログを基にユーザー間の関係を抽出しユーザーの信用スコアを算出する
-- 取引ログをネットワーク構造に変換し、中心性指標から評判・人気度を評価し信用スコアを算出する
-- GNNによりリンク予測を行い、初期段階でも安定したスコアリングを実現
-- Agentがユーザー情報に応じてデータ取得・スコア計算・アクセス制御を自律的に実行
-
-## System Architecture
-
-システムアーキテクチャを以下に示す。
-![Analytics Method](/docs/images/architecture.png)
+![System Architecture](/docs/images/architecture.png)
 
 **システムコンポーネント**
 - Turst Scoring Agent
-    - ユーザーの信用スコアの情報からアクセス制御する
+    - NFT取引履歴をグラフDBに記録することやスマートコントラクトの呼び出しによる信用スコアの登録を行う
     - 詳細については[trust-scoring-agent.md](/docs/trust-scoring-agent.md)を参照
 - Trust Engine
     - Trust Scoring Agentのリクエストを受けてユーザーの信用スコアを算出する
@@ -34,40 +28,42 @@ Trust Scoreing Systemでは、認可サーバーの代替としてWeb3サービ�
     - エッジ: ブロック番号、コントラクトアドレス、GasPrice、GasUsed、トークンID、トークンURI
 
 **コンテナ**
-1. trust-scoring-agent
-2. trust-engine
-3. graph-db
-4. document-db
+[docker-compose.yml](docker-compose.yml) で定義される4つのサービスが連携して動作する。
+1. trust-scoring-agent: [trust-scoring-agent/Dockerfile](trust-scoring-agent/Dockerfile) をビルドし、FastAPI ベースのエージェントを `:5000` で公開。`./trust-scoring-agent/app` をボリュームとしてマウントする
+2. trust-engine: [trust-engine/Dockerfile](trust-engine/Dockerfile) をビルドしCUDA 12.9 + Python 3.13 環境でGNNを実行し、`uvicorn`と`jupyter-lab`を同一コンテナで起動する
+3. graph-db: 公式 `neo4j:community` イメージを使用し、ポート `7474/7687` を公開、`./neo4j/{data,logs,conf}` を Neo4j の `/data`, `/logs`, `/conf` にマウントしてトランザクションログや設定を永続化する
 
 **関連リポジトリ**
-- Decentralized Application(DApps)
-    - 実際にユーザーが操作するDApps
+- 分散型アプリケーション
+    - 実際にユーザーが操作する分散型アプリケーション
     - ブロックチェーン上のスマートコントラクトを呼び出すことでNFT取引をする
+    - ユーザーはブロックチェーン上に記録されたスマートコントラクトを基にアクセス制御をする
     - [web3-demo-app](https://github.com/C0A21130/web3-demo-app)
 - Contract Agent
     - ユーザーに代わりスマートコントラクトを呼び出すエージェント
     - [contract-agent](https://github.com/C0A21130/contract-agent)
 - Blockchain・IPFS
     - Qo-Quorumを利用したブロックチェーン環境とIPFS Kuboを利用したIPFS環境を構築する
-    - [web3-infrastructure](https://github.com/c0a22098ea/web3-infrastructure)
+    - [blockchain](https://github.com/C0A21130/web3-demo-app/blob/main/docs/blockchain/blockchian.md)
 
 ## Directory Structure
 
 ``` bash
 .
 ├── docs: 開発者用ドキュメント
-│   ├── images
-│   ├── basic.md: GNNの基本的な実装方法について紹介している
-│   ├── environment.md: 
-│   ├── trust-engine.md
-│   └── trust-scoring-agent.md
+│   ├── basic.md: ネットワーク分析やGNNの学習用ドキュメント
+│   ├── environment.md: CUDA+Docker環境の構築方法の手順書
+│   ├── trust-engine.md: トラストエンジンの仕様書
+│   └── trust-scoring-agent.md: トラストスコアリングエージェントの仕様書
 ├── mongo: オブジェクトデータベースに関わるディレクトリ
 ├── neo4j: グラフデータベースに関わるディレクトリ
-├── trust-engine: NFT取引履歴を分析し信用度を算出する
-│   ├── 2023
-│   ├── 2024
+├── trust-engine: トラストエンジンに関するソースコード
 │   ├── 2025
-│   ├── app: 
+│   │   └── master-thesis.ipynb: 修論用の実験結果
+│   ├── app
+│   │   ├── components: モデルの学習・リンク予測・中心性算出を行うコンポーネント
+│   │   ├── test: トラストエンジンのテストコード
+│   │   └── main.py: Fast APIによるエンドポイント
 │   ├── basic: デモンストレーションに関わるディレクトリ, 学習に利用が可能
 │   │   ├── 01graph.ipynb: グラフ理論の基礎, グラフ可視化や次数に関わる手法を解説
 │   │   ├── 02centrality.ipynb: 中心性分析に関わる手法を解説
@@ -76,11 +72,15 @@ Trust Scoreing Systemでは、認可サーバーの代替としてWeb3サービ�
 │   │   ├── 05model.ipynb: モデルによるグラフ生成の手法を解説
 │   │   ├── gcn.ipynb: GCNに関わる解説
 │   │   └── vgae.ipynb: VGAEに関わる解説
-│   └── data
-└── trust-scoring-agent
-    └── app
-        ├── components
-        └── test
+│   ├── Dockerfile: CUDA+Pytorch Geometricsのコンテナイメージ作成ファイル
+│   └── requirements.txt: インストールするpipライブラリ一覧
+└── trust-scoring-agent: 信用スコアリングエージェントに関するソースコード
+    ├── app
+    │   ├── components: 各種ツールを呼び出しやエージェントに関するコンポーネント
+    │   ├── test: 信用スコアリングエージェントのテストコード
+    │   └── tools: スマートコントラクトやトラストエンジンの呼び出しを行うツール
+    ├── Dockerfile: CUDA+Pytorch Geometricsのコンテナイメージ作成ファイル
+    └── requirements.txt: インストールするpipライブラリ一覧
 ```
 
 ## Getting Started
